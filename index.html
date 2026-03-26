@@ -8,23 +8,49 @@
       color: white;
       text-align: center;
       font-family: Arial;
-      padding: 50px;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      padding: 20px;
+    }
+    iframe {
+      margin-top: 20px;
+      border-radius: 10px;
     }
     a {
       color: #38bdf8;
       font-size: 20px;
+      text-decoration: none;
+    }
+    .live {
+      color: red;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <h1>🎮 PulsePlay</h1>
-  <p>Welcome to the official gaming hub</p>
+  <div class="container">
+    <h1>🎮 PulsePlay</h1>
+    <p>Home of competitive gameplay & strategy</p>
 
-  <h2>🔥 Watch Live</h2>
-  <a href="https://twitch.tv/veiltactician" target="_blank">
-    twitch.tv/veiltactician
-  </a>
+    <h2 class="live">🔴 LIVE NOW</h2>
 
-  <p style="margin-top:40px;">More coming soon 👀</p>
+    <!-- Twitch Embed -->
+    <iframe
+      src="https://player.twitch.tv/?channel=veiltactician&parent=pulseplay.online"
+      height="480"
+      width="100%"
+      allowfullscreen>
+    </iframe>
+
+    <p>
+      <a href="https://twitch.tv/veiltactician" target="_blank">
+        👉 Watch on Twitch
+      </a>
+    </p>
+
+    <p style="margin-top:40px;">More content, merch & drops coming soon 👀</p>
+  </div>
 </body>
 </html>
