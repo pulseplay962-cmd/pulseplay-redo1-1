@@ -67,3 +67,22 @@ app.get("/live-status", async (req, res) => {
 });
 
 app.listen(3000, () => console.log("Server running"));
+
+app.get("/clips", async (req, res) => {
+  try {
+    await ensureToken();
+
+    const response = await fetch("https://api.twitch.tv/helix/clips?broadcaster_id=YOUR_USER_ID&first=6", {
+      headers: {
+        "Client-ID": CLIENT_ID,
+        "Authorization": `Bearer ${accessToken}`
+      }
+    });
+
+    const data = await response.json();
+    res.json(data);
+
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch clips" });
+  }
+});

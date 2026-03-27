@@ -88,6 +88,20 @@
 </head>
 
 <body>
+    <div id="livePopup" style="
+  display:none;
+  position:fixed;
+  top:20px;
+  right:20px;
+  background:red;
+  color:white;
+  padding:15px;
+  border-radius:10px;
+  font-weight:bold;
+  z-index:1000;
+">
+🚨 VeilTactician is LIVE — JOIN NOW
+</div>
 
 <div class="container">
 
@@ -136,6 +150,8 @@
 </div>
 
 <script>
+let wasLive = false;
+
 async function checkLive(){
   try{
     const res = await fetch("https://pulseplay-api.onrender.com/live-status");
@@ -143,19 +159,27 @@ async function checkLive(){
 
     const status = document.getElementById("liveStatus");
     const stats = document.getElementById("streamStats");
+    const popup = document.getElementById("livePopup");
 
     if(data.data.length > 0){
       const stream = data.data[0];
 
       status.textContent = "🔴 LIVE NOW";
       status.style.color = "red";
-
       stats.innerHTML = `👀 ${stream.viewer_count} viewers | 🎮 ${stream.game_name}`;
+
+      if(!wasLive){
+        popup.style.display = "block";
+        setTimeout(()=> popup.style.display="none", 5000);
+      }
+
+      wasLive = true;
+
     } else {
       status.textContent = "⚫ OFFLINE";
       status.style.color = "gray";
-
       stats.innerHTML = "Follow to get notified when live";
+      wasLive = false;
     }
 
   } catch(e){
