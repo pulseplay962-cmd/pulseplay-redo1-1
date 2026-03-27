@@ -148,9 +148,13 @@ async function checkLive(){
       const stream = data.data[0];
 
       status.textContent = "🔴 LIVE NOW";
+      status.style.color = "red";
+
       stats.innerHTML = `👀 ${stream.viewer_count} viewers | 🎮 ${stream.game_name}`;
     } else {
       status.textContent = "⚫ OFFLINE";
+      status.style.color = "gray";
+
       stats.innerHTML = "Follow to get notified when live";
     }
 
