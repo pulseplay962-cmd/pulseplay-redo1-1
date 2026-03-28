@@ -1,140 +1,174 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
   <title>PulsePlay</title>
+
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b0b0f">
+
   <style>
     body {
       margin: 0;
       font-family: Arial;
-      background: #0f0f0f;
+      background: #0b0b0f;
       color: white;
-      text-align: center;
     }
 
     nav {
       padding: 15px;
       background: #111;
+      display: flex;
+      justify-content: space-between;
     }
 
-    nav a {
-      color: #fff;
-      margin: 0 10px;
-      text-decoration: none;
-    }
-
-    .hero {
-      padding: 40px;
-    }
-
-    .glow {
-      font-size: 2.5rem;
-    }
-
-    .btn {
-      display: inline-block;
-      padding: 12px 20px;
-      background: purple;
-      color: white;
-      text-decoration: none;
-      margin-top: 15px;
-      border-radius: 6px;
-    }
-
-    iframe {
-      margin-top: 20px;
-      width: 80%;
-      height: 400px;
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      padding: 20px;
     }
 
     .grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 15px;
-      padding: 20px;
     }
 
     .card {
-      background: #1a1a1a;
+      background: #16161d;
+      padding: 12px;
+      border-radius: 12px;
+    }
+
+    .btn {
       padding: 10px;
+      background: purple;
+      border: none;
+      color: white;
       border-radius: 8px;
+      cursor: pointer;
     }
   </style>
 </head>
+
 <body>
 
 <nav>
-  <a href="#">Home</a>
-  <a href="#">Clips</a>
-  <a href="#">Schedule</a>
+  <b>⚡ PulsePlay</b>
 </nav>
 
-<section class="hero">
-  <h1 class="glow" id="liveStatus">Loading...</h1>
-  <div id="streamStats"></div>
+<div class="container">
 
-  <a class="btn" href="https://twitch.tv/VeilTactician" target="_blank">
-    WATCH STREAM
-  </a>
+  <input id="email" placeholder="email">
+  <button class="btn" onclick="login()">Login</button>
 
-  <iframe
-    src="https://player.twitch.tv/?channel=VeilTactician&parent=pulseplay.online"
-    frameborder="0"
-    allowfullscreen>
-  </iframe>
-</section>
+  <h2 id="status">Loading...</h2>
 
-<section>
-  <h2>🔥 Latest Clips</h2>
+  <h3>📊 Dashboard</h3>
+  <div class="grid" id="dashboard"></div>
+
+  <h3>🏆 Leaderboard</h3>
+  <div id="leaderboard"></div>
+
+  <h3>🔥 Clips</h3>
   <div class="grid" id="clips"></div>
-</section>
+
+</div>
 
 <script>
 const API = "https://api.pulseplay.online";
 
-async function loadData() {
-  try {
-    // 🎮 LIVE STATUS
-    const res = await fetch(`${API}/analytics`);
-    const data = await res.json();
+// PWA
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js");
+}
 
-    const status = document.getElementById("liveStatus");
-    const stats = document.getElementById("streamStats");
+// NOTIFY
+async function notify(msg) {
+  if (Notification.permission !== "granted") {
+    await Notification.requestPermission();
+  }
+  new Notification(msg);
+}
 
-    if (data.live) {
-      status.textContent = "🔴 LIVE NOW";
-      stats.textContent = `${data.stream.viewer_count} viewers | ${data.stream.game_name}`;
-    } else {
-      status.textContent = "⚫ OFFLINE";
-      stats.textContent = "Follow to get notified";
-    }
+// LOGIN
+async function login() {
+  const email = document.getElementById("email").value;
 
-    // 🎬 CLIPS
-    const clipRes = await fetch(`${API}/clips`);
-    const clipData = await clipRes.json();
+  const res = await fetch(`${API}/login`, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ email })
+  });
 
-    const clipsDiv = document.getElementById("clips");
+  const data = await res.json();
 
-    clipData.data.forEach(clip => {
-      const el = document.createElement("div");
-      el.className = "card";
-
-      el.innerHTML = `
-        <a href="${clip.url}" target="_blank">
-          <img src="${clip.thumbnail_url}" width="100%">
-          <p>${clip.title}</p>
-        </a>
-      `;
-
-      clipsDiv.appendChild(el);
-    });
-
-  } catch (err) {
-    document.getElementById("liveStatus").textContent = "Error loading data";
+  if (data.success) {
+    localStorage.setItem("user", email);
+    load();
   }
 }
 
-loadData();
+// AI SCORE
+async function scoreClip(c) {
+  const res = await fetch(`${API}/score-clip`, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      title: c.title,
+      views: c.view_count
+    })
+  });
+
+  return await res.json();
+}
+
+// LOAD
+async function load() {
+
+  // analytics
+  const a = await fetch(`${API}/analytics`);
+  const ad = await a.json();
+
+  document.getElementById("status") =
+    ad.live ? "LIVE" : "OFFLINE";
+
+  // clips
+  const c = await fetch(`${API}/clips`);
+  const cd = await c.json();
+
+  const clips = document.getElementById("clips");
+  clips.innerHTML = "";
+
+  for (const clip of cd.data) {
+    const score = await scoreClip(clip);
+
+    clips.innerHTML += `
+      <div class="card">
+        <img src="${clip.thumbnail_url}" width="100%">
+        <p>${clip.title}</p>
+        <p>AI Score: ${score.score}/100</p>
+        <p>${clip.view_count} views</p>
+        <a href="${clip.url}" target="_blank">Open</a>
+      </div>
+    `;
+
+    if (score.score > 80) {
+      notify("🔥 Viral clip detected!");
+    }
+  }
+
+  // leaderboard
+  const lb = await fetch(`${API}/leaderboard`);
+  const lbd = await lb.json();
+
+  document.getElementById("leaderboard").innerHTML =
+    lbd.map(u =>
+      `<div class="card">${u.email} - ${u.points}</div>`
+    ).join("");
+}
+
+load();
+setInterval(load, 60000);
 </script>
 
 </body>
