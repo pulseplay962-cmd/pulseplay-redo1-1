@@ -20,7 +20,10 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// TOKEN
+// ======================
+// TWITCH AUTH
+// ======================
+
 let token = "";
 let expiry = 0;
 
@@ -41,14 +44,17 @@ async function ensureToken() {
   }
 }
 
-// HEALTH
+// ======================
+// HEALTH CHECK
+// ======================
+
 app.get("/", (req, res) => {
-  res.json({ status: "PulsePlay API running" });
+  res.json({ status: "PulsePlay API running 🚀" });
 });
 
----
-
-# 👤 AUTH (SIMPLE)
+// ======================
+// AUTH SYSTEM
+// ======================
 
 app.post("/signup", async (req, res) => {
   const { email } = req.body;
@@ -71,20 +77,20 @@ app.post("/login", async (req, res) => {
     .eq("email", email)
     .single();
 
-  if (!data) return res.status(404).json({ error: "Not found" });
+  if (!data) return res.status(404).json({ error: "User not found" });
 
   res.json({ success: true });
 });
 
----
-
-# 🎬 CLIPS
+// ======================
+// TWITCH CLIPS
+// ======================
 
 app.get("/clips", async (req, res) => {
   try {
     await ensureToken();
 
-    const user = await fetch(
+    const userRes = await fetch(
       "https://api.twitch.tv/helix/users?login=veiltactician",
       {
         headers: {
@@ -94,10 +100,10 @@ app.get("/clips", async (req, res) => {
       }
     );
 
-    const userData = await user.json();
+    const userData = await userRes.json();
     const userId = userData.data[0].id;
 
-    const clips = await fetch(
+    const clipRes = await fetch(
       `https://api.twitch.tv/helix/clips?broadcaster_id=${userId}&first=6`,
       {
         headers: {
@@ -107,46 +113,83 @@ app.get("/clips", async (req, res) => {
       }
     );
 
-    res.json(await clips.json());
-  } catch (e) {
+    const clips = await clipRes.json();
+
+    res.json(clips);
+  } catch (err) {
+    console.log(err);
     res.status(500).json({ error: "clips failed" });
   }
 });
 
----
+// ======================
+// ANALYTICS
+// ======================
 
-# 🧠 AI CLIP SCORING
+app.get("/analytics", async (req, res) => {
+  try {
+    await ensureToken();
+
+    const response = await fetch(
+      "https://api.twitch.tv/helix/streams?user_login=veiltactician",
+      {
+        headers: {
+          "Client-ID": CLIENT_ID,
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    res.json({
+      live: data.data.length > 0,
+      stream: data.data[0] || null
+    });
+  } catch {
+    res.status(500).json({ error: "analytics failed" });
+  }
+});
+
+// ======================
+// AI CLIP SCORING
+// ======================
 
 app.post("/score-clip", async (req, res) => {
   try {
     const { title, views } = req.body;
 
-    const prompt = `
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "user",
+          content: `
 Rate virality 1-100.
 
 Title: ${title}
 Views: ${views}
 
-Return JSON:
+Return ONLY JSON:
 {"score": number, "reason": string}
-`;
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }]
+          `
+        }
+      ]
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const text = completion.choices[0].message.content;
+    const result = JSON.parse(text);
 
     res.json(result);
-  } catch (e) {
+  } catch (err) {
+    console.log(err);
     res.status(500).json({ error: "AI scoring failed" });
   }
 });
 
----
-
-# 🏆 LEADERBOARD
+// ======================
+// LEADERBOARD
+// ======================
 
 app.get("/leaderboard", async (req, res) => {
   const { data, error } = await supabase
@@ -160,9 +203,9 @@ app.get("/leaderboard", async (req, res) => {
   res.json(data);
 });
 
----
-
-# 📲 TIKTOK (API READY)
+// ======================
+// TIKTOK (OPTIONAL HOOK)
+// ======================
 
 app.post("/post-tiktok", async (req, res) => {
   try {
@@ -182,125 +225,17 @@ app.post("/post-tiktok", async (req, res) => {
     );
 
     res.json(response.data);
-  } catch (e) {
-    res.status(500).json({ error: "TikTok failed" });
-  }
-});
-
-app.get("/auto-run", async (req, res) => {
-  try {
-    await ensureToken();
-
-    // 1. GET USER
-    const userRes = await fetch(
-      "https://api.twitch.tv/helix/users?login=veiltactician",
-      {
-        headers: {
-          "Client-ID": CLIENT_ID,
-          Authorization: `Bearer ${token}`
-        }
-      }
-    );
-
-    const userData = await userRes.json();
-    const userId = userData.data[0].id;
-
-    // 2. GET CLIPS
-    const clipsRes = await fetch(
-      `https://api.twitch.tv/helix/clips?broadcaster_id=${userId}&first=10`,
-      {
-        headers: {
-          "Client-ID": CLIENT_ID,
-          Authorization: `Bearer ${token}`
-        }
-      }
-    );
-
-    const clipsData = await clipsRes.json();
-
-    const results = [];
-
-    // 3. PROCESS EACH CLIP
-    for (const clip of clipsData.data) {
-
-      // AI SCORE
-      const ai = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{
-          role: "user",
-          content: `
-Rate virality 1-100.
-
-Title: ${clip.title}
-Views: ${clip.view_count}
-
-Return JSON:
-{"score": number, "reason": string}
-          `
-        }]
-      });
-
-      const score = JSON.parse(ai.choices[0].message.content);
-
-      // 4. FILTER ONLY HIGH VALUE CLIPS
-      if (score.score >= 80) {
-
-        // 5. AUTO POST TO TIKTOK (READY HOOK)
-        try {
-          await axios.post(
-            "https://open.tiktokapis.com/v2/post/publish/",
-            {
-              video_url: clip.thumbnail_url,
-              caption: `🔥 ${clip.title}`
-            },
-            {
-              headers: {
-                Authorization: `Bearer ${process.env.TIKTOK_TOKEN}`
-              }
-            }
-          );
-        } catch (e) {
-          console.log("TikTok post failed (expected if not approved)");
-        }
-
-        results.push({
-          clip: clip.title,
-          score: score.score,
-          posted: true
-        });
-
-      } else {
-        results.push({
-          clip: clip.title,
-          score: score.score,
-          posted: false
-        });
-      }
-    }
-
-    res.json({
-      success: true,
-      processed: results.length,
-      results
-    });
-
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "automation failed" });
+    res.status(500).json({ error: "TikTok post failed" });
   }
 });
 
-setInterval(async () => {
-  try {
-    console.log("Running automation cycle...");
-    await fetch("http://localhost:" + process.env.PORT + "/auto-run");
-  } catch (e) {
-    console.log("Auto-run error:", e.message);
-  }
-}, 15 * 60 * 1000);
----
-
-# 🚀 START
+// ======================
+// START SERVER
+// ======================
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Running on", PORT));
+
+app.listen(PORT, () => {
+  console.log("PulsePlay running on port", PORT);
+});
