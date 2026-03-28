@@ -35,7 +35,7 @@ let twitchToken = "";
 let twitchExpiry = 0;
 
 /* =========================
-   🔥 TWITCH TOKEN
+   🔥 GET TWITCH TOKEN
 ========================= */
 async function getTwitchToken() {
   if (twitchToken && Date.now() < twitchExpiry) return twitchToken;
@@ -55,14 +55,40 @@ async function getTwitchToken() {
 }
 
 /* =========================
-   📥 TWITCH AUTO INGEST
+   🧪 DEBUG ROUTE (GET USER ID)
+========================= */
+app.get("/get-twitch-id", async (req, res) => {
+  try {
+    const token = await getTwitchToken();
+
+    const response = await fetch(
+      "https://api.twitch.tv/helix/users?login=veiltactician", // 🔁 change if needed
+      {
+        headers: {
+          "Client-ID": TWITCH_CLIENT_ID,
+          "Authorization": `Bearer ${token}`
+        }
+      }
+    );
+
+    const data = await response.json();
+    res.json(data);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch Twitch user" });
+  }
+});
+
+/* =========================
+   📥 AUTO INGEST TWITCH CLIPS
 ========================= */
 async function fetchTwitchClips() {
   try {
     const token = await getTwitchToken();
 
     const res = await fetch(
-      "https://api.twitch.tv/helix/users?login=VeilTactician",
+      "https://api.twitch.tv/helix/clips?broadcaster_id=YOUR_TWITCH_ID&first=5",
       {
         headers: {
           "Client-ID": TWITCH_CLIENT_ID,
@@ -120,17 +146,20 @@ async function fetchTwitchClips() {
         io.emit("viral_alert", saved);
       }
     }
+
   } catch (err) {
     console.error("Twitch ingest error:", err);
   }
 }
 
-/* AUTO RUN */
+/* 🔁 RUN EVERY 60 SECONDS */
 setInterval(fetchTwitchClips, 60000);
 
 /* =========================
    🚀 ROUTES
 ========================= */
+
+/* HEALTH */
 app.get("/", (req, res) => {
   res.json({ status: "PulsePlay API running 🚀" });
 });
@@ -173,7 +202,7 @@ app.post("/clips", async (req, res) => {
 
     res.json({ clip });
 
-  } catch {
+  } catch (err) {
     res.status(500).json({ error: "Failed to create clip" });
   }
 });
@@ -225,11 +254,11 @@ app.post("/post-to-tiktok", async (req, res) => {
 
 /* SOCKET */
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+  console.log("🟢 Connected:", socket.id);
 });
 
-/* START */
+/* START SERVER */
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log("🚀 Running on port", PORT);
+  console.log("🚀 PulsePlay running on port", PORT);
 });
